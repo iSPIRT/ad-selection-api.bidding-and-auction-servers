@@ -251,7 +251,6 @@ jobs:
           else
             echo "✅ No critical security issues found in Infrastructure as Code"
           fi
-
       - name: Cleanup build artifacts
         if: always()
         run: |
