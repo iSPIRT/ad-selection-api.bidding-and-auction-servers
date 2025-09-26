@@ -101,3 +101,17 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
+
+      # Run Scorecard for JSON (for scorecard.dev)
+      - name: Run Scorecard JSON
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: results.json
+          results_format: json
+
+      # Upload JSON to artifact so you can download and manually upload to scorecard.dev
+      - name: Upload JSON artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: scorecard-json
+          path: results.json
