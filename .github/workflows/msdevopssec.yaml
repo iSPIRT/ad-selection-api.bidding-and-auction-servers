@@ -22,7 +22,7 @@ jobs:
     steps:
 
       # Checkout your code repository to scan
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v3
 
       # Run analyzers
     - name: Run Microsoft Security DevOps
@@ -30,7 +30,7 @@ jobs:
       id: msdo
       
     - name: Upload SARIF to GitHub
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: alerts
         path: ${{ steps.msdo.outputs.sarifFile }}
