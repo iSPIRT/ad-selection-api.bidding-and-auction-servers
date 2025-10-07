@@ -1,15 +1,16 @@
 name: MSDO
 on:
   push:
-    branches:
-      - main
+    branches: [ "pavankad-ms-devops" ]
+  workflow_dispatch:
+
 
 jobs:
   sample:
     name: Microsoft Security DevOps
 
     # Windows and Linux agents are supported
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     permissions:
       contents: read
