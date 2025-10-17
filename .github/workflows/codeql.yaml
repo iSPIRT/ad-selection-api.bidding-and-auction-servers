@@ -1,22 +1,13 @@
 name: "CodeQL Analysis"
 
 on:
-  # Manual trigger only from any branch/environment
+  # Manual trigger only from any branch
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to run analysis on'
         required: false
         default: 'main'
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
-        type: choice
-        options:
-        - development
-        - staging
-        - production
 
   # Allow this workflow to be called by other workflows
   workflow_call:
@@ -25,11 +16,6 @@ on:
         description: 'Branch to run analysis on'
         required: false
         default: 'main'
-        type: string
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
         type: string
 
 permissions:
