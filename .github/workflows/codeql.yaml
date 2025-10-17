@@ -222,7 +222,7 @@ jobs:
         path: |
           ${{ runner.temp }}/codeql_databases/*/results/*.sarif
           ${{ runner.temp }}/codeql_databases/*/results/**/*.sarif
-          ../results/*.sarif
+          ${{ github.workspace }}/results/*.sarif
         if-no-files-found: warn
     
     # Note: CodeQL action automatically uploads results to GitHub Security dashboard
