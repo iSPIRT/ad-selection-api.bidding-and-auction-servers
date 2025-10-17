@@ -213,19 +213,7 @@ jobs:
       with:
         category: "/language:${{matrix.language}}"
         
-    # Debug and upload SARIF results as workflow artifacts for download/inspection
-    - name: Debug SARIF file locations
-      if: always()
-      run: |
-        echo "Debugging SARIF file locations..."
-        echo "GITHUB_WORKSPACE: ${{ github.workspace }}"
-        echo "RUNNER_TEMP: ${{ runner.temp }}"
-        echo "Current working directory: $(pwd)"
-        echo "Looking for SARIF files in various locations:"
-        find /home/azureuser/codescanner/_work/ -name "*.sarif" -type f 2>/dev/null || echo "No SARIF files found"
-        echo "Specific results directory check:"
-        ls -la /home/azureuser/codescanner/_work/ad-selection-api.bidding-and-auction-servers/results/ 2>/dev/null || echo "Results directory not found"
-        
+    # Upload SARIF results as workflow artifacts for download/inspection
     - name: Upload CodeQL SARIF results
       if: always()
       uses: actions/upload-artifact@v4.6.2
