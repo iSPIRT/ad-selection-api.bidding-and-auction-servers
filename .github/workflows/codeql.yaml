@@ -59,9 +59,6 @@ jobs:
       with:
         ref: ${{ inputs.branch || github.event.inputs.branch || github.ref }}
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
     - name: Setup CodeQL environment
       run: |
         echo "Setting up CodeQL environment for analysis..."
@@ -82,8 +79,8 @@ jobs:
         # Enable dependency caching for better performance and accuracy
         dependency-caching: true
       env:
-        # Set CodeQL extractor options for better C++ analysis accuracy
-        CODEQL_EXTRACTOR_CPP_OPTION_INCLUDE_DIRECTORIES: "generated/config:generated/proto:/usr/include:/usr/local/include:services:api"
+        # Set CodeQL extractor options for better C++ analysis accuracy (no protobuf)
+        CODEQL_EXTRACTOR_CPP_OPTION_INCLUDE_DIRECTORIES: "generated/config:/usr/include:/usr/local/include:services:api:third_party"
         CODEQL_EXTRACTOR_CPP_OPTION_DEFINE: "ENABLE_CORE_DUMPS=1,ENABLE_PROTECTED_AUDIENCE=1,CODEQL_ANALYSIS=1"
     - name: Setup comprehensive C++ dependencies for maximum CodeQL accuracy
       if: matrix.language == 'cpp'
@@ -153,37 +150,17 @@ jobs:
         
         echo "✅ Comprehensive C++ environment prepared for maximum CodeQL accuracy"
 
-    - name: Generate protobuf files and handle custom macros for accuracy
+    - name: Create configuration header for C++ macro resolution
       if: matrix.language == 'cpp'
       run: |
-        echo "Generating protobuf files to improve CodeQL analysis accuracy..."
+        echo "Creating configuration header with common macros for better CodeQL analysis..."
+        echo "Skipping protobuf generation due to missing dependencies - focusing on core C++ source analysis"
         
-        # Create output directory for generated files
-        mkdir -p generated/proto
-        
-        # Generate C++ files from .proto definitions
-        echo "Generating C++ files from protobuf definitions..."
-        if find api/ -name "*.proto" -print0 | xargs -0 -I {} protoc \
-          --cpp_out=generated/proto/ \
-          --grpc_out=generated/proto/ \
-          --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin 2>/dev/null || echo "grpc_cpp_plugin") \
-          --proto_path=api/ \
-          --proto_path=/usr/include/ \
-          {}; then
-          echo "✅ Protobuf files generated successfully"
-        else
-          echo "⚠️ Some protobuf files failed to generate, continuing with available sources"
-        fi
-        
-        # Create a comprehensive configuration header for better macro resolution
-        echo "Creating configuration header with common macros..."
+        # Create configuration directory and header for better macro resolution
         mkdir -p generated/config
         
-        # Generate configuration header line by line to avoid YAML issues
+        # Create configuration header with common macros (line by line to avoid YAML issues)
         echo "// CodeQL Analysis Configuration Header" > generated/config/codeql_config.h
-        echo "// This file provides macro definitions commonly used in the codebase" >> generated/config/codeql_config.h
-        echo "// to improve CodeQL analysis accuracy" >> generated/config/codeql_config.h
-        echo "" >> generated/config/codeql_config.h
         echo "#ifndef CODEQL_CONFIG_H" >> generated/config/codeql_config.h
         echo "#define CODEQL_CONFIG_H" >> generated/config/codeql_config.h
         echo "" >> generated/config/codeql_config.h
@@ -193,49 +170,43 @@ jobs:
         echo "#define ENABLE_PROTECTED_APP_SIGNALS 1" >> generated/config/codeql_config.h
         echo "#define ENABLE_KANON 1" >> generated/config/codeql_config.h
         echo "" >> generated/config/codeql_config.h
-        echo "// Common Google macros" >> generated/config/codeql_config.h
+        echo "// Common Google/Abseil macros" >> generated/config/codeql_config.h
         echo "#define ABSL_HAVE_STD_STRING_VIEW 1" >> generated/config/codeql_config.h
         echo "#define GOOGLE_GLOG_DLL_DECL" >> generated/config/codeql_config.h
         echo "#define GFLAGS_DLL_DECL" >> generated/config/codeql_config.h
         echo "" >> generated/config/codeql_config.h
         echo "#endif // CODEQL_CONFIG_H" >> generated/config/codeql_config.h
         
-        echo "✅ Configuration header created for better macro resolution"
+        echo "✅ Configuration header created - CodeQL will analyze C++ source files without protobuf dependencies"
 
-    - name: Verify comprehensive C++ source structure for maximum accuracy
+    - name: Verify C++ source structure for CodeQL analysis
       if: matrix.language == 'cpp'
       run: |
-        echo "Verifying comprehensive C++ source code structure for maximum CodeQL analysis accuracy..."
+        echo "Verifying C++ source code structure for CodeQL analysis (without protobuf)..."
         
-        echo "=== Source File Analysis ==="
+        echo "=== Core C++ Source Files ==="
         echo "Main service source files:"
         find services/ -name "*.cc" -o -name "*.cpp" | head -10
-        echo "Header files:"
+        echo "Service header files:"
         find services/ -name "*.h" -o -name "*.hpp" | head -10
-        echo "Generated protobuf files:"
-        find generated/proto/ -name "*.pb.*" 2>/dev/null | head -10 || echo "No generated protobuf files"
+        echo "Third-party C++ files:"
+        find third_party/ -name "*.cc" -o -name "*.cpp" | head -5
         
         echo "=== File Counts ==="
         echo "Total C++ source files: $(find . -name "*.cc" -o -name "*.cpp" | wc -l)"
         echo "Total header files: $(find . -name "*.h" -o -name "*.hpp" | wc -l)"
-        echo "Total protobuf definitions: $(find api/ -name "*.proto" | wc -l)"
-        echo "Generated protobuf files: $(find generated/ -name "*.pb.*" 2>/dev/null | wc -l || echo 0)"
+        echo "API proto definitions: $(find api/ -name "*.proto" | wc -l) (will be analyzed as text)"
+        echo "Configuration headers: $(find generated/config/ -name "*.h" 2>/dev/null | wc -l || echo 0)"
         
-        echo "=== Include Directory Structure ==="
-        echo "System includes:"
-        ls -la /usr/include/c++/ 2>/dev/null | head -5 || echo "C++ headers not found in /usr/include/c++/"
-        echo "Local includes available:"
-        echo "- $(pwd)/services/ ($(find services/ -name "*.h" | wc -l) headers)"
-        echo "- $(pwd)/api/ ($(find api/ -name "*.proto" | wc -l) proto files)"
-        echo "- $(pwd)/generated/config/ ($(find generated/config/ -name "*.h" 2>/dev/null | wc -l || echo 0) config headers)"
-        echo "- $(pwd)/generated/proto/ ($(find generated/proto/ -name "*.h" 2>/dev/null | wc -l || echo 0) generated headers)"
+        echo "=== Include Directory Verification ==="
+        echo "System C++ headers available: $(ls /usr/include/c++/ 2>/dev/null | wc -l || echo 0)"
+        echo "Available library headers:"
+        echo "- Standard library: $(ls /usr/include/c++/*/iostream 2>/dev/null | wc -l || echo 0) found"
+        echo "- System headers: $(ls /usr/include/sys/ 2>/dev/null | wc -l || echo 0) files"
+        echo "- Local service headers: $(find services/ -name "*.h" | wc -l)"
+        echo "- Configuration headers: $(find generated/config/ -name "*.h" 2>/dev/null | wc -l || echo 0)"
         
-        echo "=== Third-party Library Headers ==="
-        echo "Protobuf headers: $(ls /usr/include/google/protobuf/ 2>/dev/null | wc -l || echo 0) files"
-        echo "gRPC headers: $(ls /usr/include/grpcpp/ 2>/dev/null | wc -l || echo 0) files"
-        echo "Abseil headers: $(ls /usr/include/absl/ 2>/dev/null | wc -l || echo 0) files"
-        
-        echo "✅ Comprehensive C++ source structure verified for maximum CodeQL accuracy"
+        echo "✅ C++ source structure verified - CodeQL ready to analyze without protobuf dependencies"
 
     - name: Create compilation database for enhanced accuracy
       if: matrix.language == 'cpp'
