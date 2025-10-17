@@ -1,22 +1,13 @@
 name: "KICS IaC Security Scan"
 
 on:
-  # Manual trigger only from any branch/environment
+  # Manual trigger only from any branch
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to run KICS scan on'
         required: false
         default: 'main'
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
-        type: choice
-        options:
-        - development
-        - staging
-        - production
       scan_path:
         description: 'Path to scan for IaC files'
         required: false
@@ -30,11 +21,6 @@ on:
         description: 'Branch to run KICS scan on'
         required: false
         default: 'main'
-        type: string
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
         type: string
       scan_path:
         description: 'Path to scan for IaC files'
