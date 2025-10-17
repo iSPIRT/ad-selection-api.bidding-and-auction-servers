@@ -18,22 +18,13 @@
 name: Scorecard supply-chain security
 
 on:
-  # Manual trigger only from any branch/environment
+  # Manual trigger only from any branch
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to run scorecard on'
         required: false
         default: 'main'
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
-        type: choice
-        options:
-        - development
-        - staging
-        - production
 
 # Declare default permissions as read only.
 permissions: read-all
