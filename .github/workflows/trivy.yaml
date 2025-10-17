@@ -18,34 +18,20 @@ name: trivy
 #   contents: read
 
 on:
-  # Manual trigger only from any branch/environment
+  # Manual trigger only from any branch
   workflow_dispatch:
     inputs:
       branch:
         description: 'Branch to run Trivy on'
         required: false
         default: 'main'
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
-        type: choice
-        options:
-        - development
-        - staging
-        - production
-      image_tag:
-        description: 'Docker image tag version'
-        required: false
-        default: '4.3.0.0'
-        type: string
       build_flavor:
         description: 'Build flavor for tagging'
         required: false
-        default: 'nonprod'
+        default: 'non_prod'
         type: choice
         options:
-        - nonprod
+        - non_prod
         - prod
 
   # Allow this workflow to be called by other workflows
@@ -56,20 +42,10 @@ on:
         required: false
         default: 'main'
         type: string
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
-        type: string
-      image_tag:
-        description: 'Docker image tag version'
-        required: false
-        default: '4.3.0.0'
-        type: string
       build_flavor:
         description: 'Build flavor for tagging'
         required: false
-        default: 'nonprod'
+        default: 'non_prod'
         type: string
 
 jobs:
@@ -92,35 +68,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # - name: Log in with Azure (OIDC)
-      #   uses: azure/login@v2
-      #   with:
-      #     client-id: ${{ secrets.AZURE_CLIENT_ID }}
-      #     tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-      #     subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
       - name: Log in to Azure Container Registry
         uses: azure/docker-login@v1
         with:
           login-server: ispirt.azurecr.io
           username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
           password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
-
-      # - name: Set up Bazel cache with Azure Blob Storage
-      #   run: |
-      #     echo "Setting up Bazel remote cache with Azure Blob Storage..."
-      #     # Append remote cache configuration to existing .bazelrc
-      #     cat >> .bazelrc << EOF
-          
-      #     # Remote cache configuration for Azure Blob Storage
-      #     build:remote --remote_cache=https://${{ secrets.AZURE_STORAGE_ACCOUNT }}.blob.core.windows.net/${{ secrets.AZURE_BAZEL_CACHE_CONTAINER }}
-      #     build:remote --remote_upload_local_results=true
-      #     build:remote --remote_accept_cached=true
-      #     build:remote --remote_timeout=60
-      #     build:remote --experimental_remote_cache_compression
-      #     EOF
-          
-      #     echo "Bazel remote cache configuration added to .bazelrc"
 
       - name: Build the code
         run: |
@@ -153,7 +106,7 @@ jobs:
             --service-path buyer_frontend_service \
             --no-precommit \
             --no-tests \
-            --build-flavor non_prod \
+            --build-flavor ${{ github.event.inputs.build_flavor || 'non_prod' }} \
             --platform azure \
             --instance local
 
@@ -223,11 +176,10 @@ jobs:
             # Create unique output file for this image
             SERVICE_NAME=$(basename "$tar_file" .tar | sed 's/_image$//')
             SARIF_OUTPUT="trivy-results-${SERVICE_NAME}.sarif"
-            JSON_OUTPUT="trivy-results-${SERVICE_NAME}.json"
             
             echo "🔍 Running Trivy scan on: $IMAGE_NAME"
             
-            # Run Trivy scan in SARIF format
+            # Run Trivy scan in SARIF format only
             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
               -v $(pwd):/workspace \
               aquasec/trivy:latest image \
@@ -236,37 +188,19 @@ jobs:
               --severity CRITICAL,HIGH,MEDIUM \
               "$IMAGE_NAME"
             
-            # Run Trivy scan in JSON format for analysis
-            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-              -v $(pwd):/workspace \
+            # Check if vulnerabilities were found by examining scan exit code
+            if docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
               aquasec/trivy:latest image \
-              --format json \
-              --output "/workspace/$JSON_OUTPUT" \
-              --severity CRITICAL,HIGH,MEDIUM \
-              "$IMAGE_NAME"
-            
-            # Check if vulnerabilities were found
-            if [ -f "$JSON_OUTPUT" ]; then
-              VULN_COUNT=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL" or .Severity == "HIGH")] | length' "$JSON_OUTPUT" 2>/dev/null || echo "0")
-              echo "📊 Found $VULN_COUNT critical/high vulnerabilities in $SERVICE_NAME"
-              
-              if [ "$VULN_COUNT" -gt 0 ]; then
-                VULNERABILITY_FOUND=true
-                SCAN_RESULTS="${SCAN_RESULTS}❌ $SERVICE_NAME: $VULN_COUNT critical/high vulnerabilities found\n"
-              else
-                SCAN_RESULTS="${SCAN_RESULTS}✅ $SERVICE_NAME: No critical/high vulnerabilities found\n"
-              fi
+              --format table \
+              --severity CRITICAL,HIGH \
+              --exit-code 1 \
+              "$IMAGE_NAME" > /dev/null 2>&1; then
+              echo "✅ No critical/high vulnerabilities found in $SERVICE_NAME"
+              SCAN_RESULTS="${SCAN_RESULTS}✅ $SERVICE_NAME: No critical/high vulnerabilities found\n"
             else
-              echo "⚠️ Could not analyze scan results for $SERVICE_NAME"
-              SCAN_RESULTS="${SCAN_RESULTS}⚠️ $SERVICE_NAME: Scan analysis failed\n"
-            fi
-            
-            # Tag image for potential push
-            if [ "$VULNERABILITY_FOUND" = "false" ]; then
-              REGISTRY_TAG="ispirt.azurecr.io/depa-inferencing/azure/${SERVICE_NAME}:${{ github.event.inputs.build_flavor || 'nonprod' }}-${{ github.event.inputs.image_tag || '4.3.0.0' }}"
-              echo "🏷️ Tagging image: $REGISTRY_TAG"
-              docker tag "$IMAGE_NAME" "$REGISTRY_TAG"
-              echo "tagged_image_${SERVICE_NAME}=${REGISTRY_TAG}" >> $GITHUB_OUTPUT
+              echo "❌ Critical/high vulnerabilities found in $SERVICE_NAME"
+              VULNERABILITY_FOUND=true
+              SCAN_RESULTS="${SCAN_RESULTS}❌ $SERVICE_NAME: Critical/high vulnerabilities found\n"
             fi
             
           done < tar_files_list.txt
@@ -316,33 +250,7 @@ jobs:
           category: 'trivy-buyer-frontend-service'
         continue-on-error: true
 
-      - name: Push images to registry if no vulnerabilities
-        id: push_images
-        if: steps.scan_images.outputs.vulnerability_found == 'false'
-        run: |
-          echo "✅ No critical/high vulnerabilities found. Pushing images to registry..."
-          PUSHED_IMAGES=""
-          
-          while IFS= read -r tar_file; do
-            if [ -z "$tar_file" ]; then continue; fi
-            
-            SERVICE_NAME=$(basename "$tar_file" .tar | sed 's/_image$//')
-            REGISTRY_TAG="ispirt.azurecr.io/depa-inferencing/azure/test/${SERVICE_NAME}:${{ github.event.inputs.build_flavor || 'nonprod' }}-${{ github.event.inputs.image_tag || '4.3.0.0' }}"
-            
-            echo "🚀 Pushing: $REGISTRY_TAG"
-            if docker push "$REGISTRY_TAG"; then
-              echo "✅ Successfully pushed: $REGISTRY_TAG"
-              PUSHED_IMAGES="${PUSHED_IMAGES}✅ $REGISTRY_TAG\n"
-            else
-              echo "❌ Failed to push: $REGISTRY_TAG"
-              PUSHED_IMAGES="${PUSHED_IMAGES}❌ $REGISTRY_TAG (push failed)\n"
-            fi
-            
-          done < tar_files_list.txt
-          
-          echo "pushed_images<<EOF" >> $GITHUB_OUTPUT
-          echo -e "$PUSHED_IMAGES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+
 
       - name: Generate security report
         id: scan_summary
@@ -351,8 +259,7 @@ jobs:
           echo "# Docker Security Scan Report" > security_report.md
           echo "**Date:** $(date)" >> security_report.md
           echo "**Branch:** ${{ github.event.inputs.branch || github.ref_name }}" >> security_report.md
-          echo "**Build Flavor:** ${{ github.event.inputs.build_flavor || 'nonprod' }}" >> security_report.md
-          echo "**Image Tag:** ${{ github.event.inputs.image_tag || '4.3.0.0' }}" >> security_report.md
+          echo "**Build Flavor:** ${{ github.event.inputs.build_flavor || 'non_prod' }}" >> security_report.md
           echo "" >> security_report.md
           echo "## Scan Results" >> security_report.md
           echo "Images scanned: ${{ steps.scan_images.outputs.images_scanned }}" >> security_report.md
@@ -361,15 +268,14 @@ jobs:
           echo "### Detailed Results" >> security_report.md
           echo -e "${{ steps.scan_images.outputs.scan_results }}" >> security_report.md
           
-          if [ "${{ steps.scan_images.outputs.vulnerability_found }}" = "false" ]; then
-            echo "" >> security_report.md
-            echo "## Registry Push Results" >> security_report.md
-            echo -e "${{ steps.push_images.outputs.pushed_images }}" >> security_report.md
-          else
+          if [ "${{ steps.scan_images.outputs.vulnerability_found }}" = "true" ]; then
             echo "" >> security_report.md
             echo "## ⚠️ Action Required" >> security_report.md
-            echo "Critical or high vulnerabilities were found. Images were **NOT** pushed to registry." >> security_report.md
-            echo "Please review the SARIF files and address the vulnerabilities before deployment." >> security_report.md
+            echo "Critical or high vulnerabilities were found. Please review the SARIF files and address the vulnerabilities." >> security_report.md
+          else
+            echo "" >> security_report.md
+            echo "## ✅ Security Status" >> security_report.md
+            echo "No critical or high vulnerabilities found. Images passed security scan." >> security_report.md
           fi
           
           cat security_report.md
