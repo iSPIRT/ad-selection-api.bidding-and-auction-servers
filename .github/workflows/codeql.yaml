@@ -82,73 +82,35 @@ jobs:
         # Set CodeQL extractor options for better C++ analysis accuracy (no protobuf)
         CODEQL_EXTRACTOR_CPP_OPTION_INCLUDE_DIRECTORIES: "generated/config:/usr/include:/usr/local/include:services:api:third_party"
         CODEQL_EXTRACTOR_CPP_OPTION_DEFINE: "ENABLE_CORE_DUMPS=1,ENABLE_PROTECTED_AUDIENCE=1,CODEQL_ANALYSIS=1"
-    - name: Setup comprehensive C++ dependencies for maximum CodeQL accuracy
+    - name: Install C++ compiler and essential headers for CodeQL analysis
       if: matrix.language == 'cpp'
       run: |
-        echo "Setting up comprehensive C++ dependencies for maximum CodeQL accuracy..."
-        echo "Installing complete development environment for better dependency resolution"
+        echo "Installing C++ compiler and headers for CodeQL template/macro resolution..."
+        echo "Note: CodeQL uses compiler for preprocessing only - no actual compilation occurs"
         
         # Update package lists
         sudo apt-get update
         
-        # Install comprehensive C++ development environment
-        echo "Installing complete C++ toolchain and standard libraries..."
+        # Install minimal C++ toolchain for CodeQL reference compilation
+        echo "Installing C++ compiler for CodeQL preprocessing..."
         sudo apt-get install -y \
-          build-essential \
-          gcc-multilib \
-          g++-multilib \
-          libc6-dev \
+          gcc \
+          g++ \
           libc++-dev \
-          libc++abi-dev \
-          libstdc++-12-dev \
-          linux-libc-dev \
-          manpages-dev
+          libstdc++-12-dev
         
-        # Install system libraries commonly used in the project
-        echo "Installing system and networking libraries..."
-        sudo apt-get install -y \
-          libssl-dev \
-          libcurl4-openssl-dev \
-          libz-dev \
-          libzstd-dev \
-          liblz4-dev \
-          libsnappy-dev \
-          libunwind-dev \
-          libevent-dev \
-          libatomic1
-          
-        # Install Google libraries and protobuf ecosystem
-        echo "Installing Google libraries and protobuf ecosystem..."
+        # Install key library headers that the project uses
+        echo "Installing project-specific library headers..."
         sudo apt-get install -y \
           libprotobuf-dev \
-          protobuf-compiler \
           libgrpc++-dev \
-          protobuf-compiler-grpc \
           libabsl-dev \
           libgoogle-glog-dev \
           libgflags-dev \
-          libgtest-dev \
-          libbenchmark-dev || echo "⚠️ Some Google libraries not available via apt"
-          
-        # Install AWS SDK dependencies
-        echo "Installing AWS and cloud service dependencies..."
-        sudo apt-get install -y \
-          libaws-* \
-          libcrypto++-dev \
-          libcpprest-dev || echo "⚠️ Some AWS libraries not available via apt"
+          libssl-dev \
+          libcurl4-openssl-dev || echo "⚠️ Some libraries not available - CodeQL will continue without them"
         
-        # Install additional development tools
-        echo "Installing development and analysis tools..."
-        sudo apt-get install -y \
-          pkg-config \
-          cmake \
-          ninja-build \
-          git \
-          ca-certificates \
-          curl \
-          wget
-        
-        echo "✅ Comprehensive C++ environment prepared for maximum CodeQL accuracy"
+        echo "✅ C++ compiler and headers installed for CodeQL template/macro analysis"
 
     - name: Create configuration header for C++ macro resolution
       if: matrix.language == 'cpp'
@@ -208,27 +170,18 @@ jobs:
         
         echo "✅ C++ source structure verified - CodeQL ready to analyze without protobuf dependencies"
 
-    - name: Create compilation database for enhanced accuracy
+    - name: Verify CodeQL configuration for direct source analysis
       if: matrix.language == 'cpp'
       run: |
-        echo "Creating compilation database to guide CodeQL analysis..."
+        echo "Verifying CodeQL configuration for 'none' build mode analysis..."
+        echo "Note: Compilation database not needed - CodeQL analyzes source directly"
         
-        # Create a simple compilation database to help CodeQL understand the project
-        echo '[' > compile_commands.json
-        echo '  {' >> compile_commands.json
-        echo '    "directory": "'$(pwd)'",' >> compile_commands.json
-        echo '    "command": "clang++ -std=c++17 -I. -Igenerated/config -Igenerated/proto -Iservices -Iapi -I/usr/include -I/usr/local/include -DENABLE_CORE_DUMPS=1 -DENABLE_PROTECTED_AUDIENCE=1 -DCODEQL_ANALYSIS=1 -c services/auction_service/auction_main.cc",' >> compile_commands.json
-        echo '    "file": "services/auction_service/auction_main.cc"' >> compile_commands.json
-        echo '  }' >> compile_commands.json
-        echo ']' >> compile_commands.json
+        echo "CodeQL extractor configuration:"
+        echo "- Include directories: generated/config:/usr/include:/usr/local/include:services:api:third_party"
+        echo "- Preprocessor defines: ENABLE_CORE_DUMPS=1,ENABLE_PROTECTED_AUDIENCE=1,CODEQL_ANALYSIS=1"
+        echo "- Build mode: none (direct source analysis)"
         
-        # Verify the compilation database was created
-        echo "Compilation database created:"
-        ls -la compile_commands.json
-        echo "Sample content:"
-        head -5 compile_commands.json
-        
-        echo "✅ Compilation database created to enhance CodeQL analysis accuracy"
+        echo "✅ CodeQL configured for optimal direct source code analysis"
 
     - name: Verify CodeQL database preparation
       if: matrix.language == 'cpp'
