@@ -213,19 +213,20 @@ jobs:
       with:
         category: "/language:${{matrix.language}}"
         
-    #upload to the repository Actions tab.
+    # Upload SARIF results as workflow artifacts for download/inspection
     - name: Upload CodeQL SARIF results
       if: always()
       uses: actions/upload-artifact@v4.6.2
       with:
         name: codeql-sarif-${{ matrix.language }}
-        path: ${{ runner.temp }}/codeql_databases/*/results/*.sarif
+        path: |
+          ${{ runner.temp }}/codeql_databases/*/results/*.sarif
+          ${{ runner.temp }}/codeql_databases/*/results/**/*.sarif
+          ../results/*.sarif
+        if-no-files-found: warn
     
-    # Upload the results to GitHub's code scanning dashboard.
-    - name: Upload to code-scanning
-      uses: github/codeql-action/upload-sarif@v3
-      with:
-        sarif_file: results.sarif
+    # Note: CodeQL action automatically uploads results to GitHub Security dashboard
+    # No additional upload-sarif step needed since analyze@v3 handles it
     
     - name: Cleanup workspace
       if: always()
