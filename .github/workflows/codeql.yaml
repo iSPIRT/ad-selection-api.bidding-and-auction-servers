@@ -199,16 +199,86 @@ jobs:
       with:
         category: "/language:${{matrix.language}}"
         
+    # Clean SARIF files to remove logs and keep only vulnerability results
+    - name: Clean SARIF files for vulnerability tools
+      if: always()
+      run: |
+        echo "🧹 Cleaning SARIF files to remove logs and keep only vulnerability results..."
+        
+        # Install jq if not available
+        which jq || sudo apt-get update && sudo apt-get install -y jq
+        
+        # Find and clean SARIF files
+        for sarif_file in /home/azureuser/codescanner/_work/ad-selection-api.bidding-and-auction-servers/results/*.sarif ${{ runner.temp }}/codeql_databases/*/results/*.sarif; do
+          if [ -f "$sarif_file" ]; then
+            echo "🔧 Processing: $(basename "$sarif_file")"
+            
+            # Create cleaned version
+            cleaned_file="${sarif_file%.sarif}_cleaned.sarif"
+            
+            # Strip logs and keep only essential vulnerability data
+            jq '{
+              "$schema": ."$schema",
+              "version": .version,
+              "runs": [
+                .runs[] | {
+                  "tool": {
+                    "driver": {
+                      "name": .tool.driver.name,
+                      "version": .tool.driver.version,
+                      "rules": .tool.driver.rules
+                    }
+                  },
+                  "results": .results,
+                  "artifacts": .artifacts
+                }
+              ]
+            }' "$sarif_file" > "$cleaned_file"
+            
+            # Check if cleaning was successful
+            if [ -f "$cleaned_file" ] && [ -s "$cleaned_file" ]; then
+              original_size=$(wc -c < "$sarif_file")
+              cleaned_size=$(wc -c < "$cleaned_file")
+              reduction=$((100 - (cleaned_size * 100 / original_size)))
+              
+              echo "✅ Cleaned $(basename "$sarif_file"): ${original_size} → ${cleaned_size} bytes (${reduction}% reduction)"
+              
+              # Verify JSON is valid
+              if jq empty "$cleaned_file" 2>/dev/null; then
+                echo "✅ Cleaned SARIF is valid JSON"
+              else
+                echo "❌ Warning: Cleaned SARIF has invalid JSON, keeping original"
+                rm -f "$cleaned_file"
+              fi
+            else
+              echo "❌ Failed to clean $(basename "$sarif_file"), keeping original"
+              rm -f "$cleaned_file"
+            fi
+          fi
+        done
+        
+        echo "🎯 SARIF cleaning completed"
+        
     # Upload SARIF results as workflow artifacts for download/inspection
-    # Todo: {{ github-workspace }} is not working, need to recreate runner probably
-    - name: Upload CodeQL SARIF results
+    - name: Upload Complete CodeQL SARIF results (with logs for debugging)
       if: always()
       uses: actions/upload-artifact@v4.6.2
       with:
-        name: codeql-sarif-${{ matrix.language }}
+        name: codeql-sarif-complete-${{ matrix.language }}
         path: |
           /home/azureuser/codescanner/_work/ad-selection-api.bidding-and-auction-servers/results/*.sarif
           ${{ runner.temp }}/codeql_databases/*/results/*.sarif
+        if-no-files-found: warn
+    
+    # Upload cleaned SARIF files specifically for vulnerability management tools
+    - name: Upload Cleaned SARIF Results For Vulnerability Tools
+      if: always()
+      uses: actions/upload-artifact@v4.6.2
+      with:
+        name: codeql-sarif-results-${{ matrix.language }}
+        path: |
+          /home/azureuser/codescanner/_work/ad-selection-api.bidding-and-auction-servers/results/*_cleaned.sarif
+          ${{ runner.temp }}/codeql_databases/*/results/*_cleaned.sarif
         if-no-files-found: warn
     
     # Note: CodeQL action automatically uploads results to GitHub Security dashboard
