@@ -16,34 +16,10 @@
 # https://github.com/ossf/scorecard-action#installation
 
 name: Scorecard supply-chain security
-# on:
-#   # For Branch-Protection check. Only the default branch is supported. See
-#   # https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection
-#   branch_protection_rule:
-#   # To guarantee Maintained check is occasionally updated. See
-#   # https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained
-#   schedule:
-#     - cron: '35 10 * * 4'
-#   push:
-#     branches:
-#     - main
+
 on:
-  # Manual trigger only from any branch/environment
+  # Manual trigger only from default branch (main)
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to run scorecard on'
-        required: false
-        default: 'main'
-      environment:
-        description: 'Environment to run in'
-        required: false
-        default: 'development'
-        type: choice
-        options:
-        - development
-        - staging
-        - production
 
 # Declare default permissions as read only.
 permissions: read-all
@@ -57,11 +33,9 @@ jobs:
       security-events: write
       # Needed to publish results and get a badge (see publish_results below).
       id-token: write
-      # Uncomment the permissions below if installing in a private repository.
-      # contents: read
-      # actions: read
 
     steps:
+    
       - name: Checkout code
         uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # v3.1.0
         with:
