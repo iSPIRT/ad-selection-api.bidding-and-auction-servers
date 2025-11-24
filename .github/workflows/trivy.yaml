@@ -77,7 +77,7 @@ jobs:
 
       - name: Clean up possible Bazel corrupt installation
         run: |
-          rm -rf /bazel_root/build_ubuntu_b77b7d5/install/7ddb90f005a5de4b8921e9ce1a0d9e48
+          sudo rm -rf /bazel_root/build_ubuntu_b77b7d5/install/7ddb90f005a5de4b8921e9ce1a0d9e48
 
       - name: Build the code
         run: |
