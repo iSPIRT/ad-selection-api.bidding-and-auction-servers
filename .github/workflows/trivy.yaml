@@ -75,6 +75,10 @@ jobs:
           username: ${{ secrets.AZURE_REGISTRY_USERNAME }}
           password: ${{ secrets.AZURE_REGISTRY_PASSWORD }}
 
+      - name: Clean up possible Bazel corrupt installation
+        run: |
+          rm -rf /bazel_root/build_ubuntu_b77b7d5/install/7ddb90f005a5de4b8921e9ce1a0d9e48
+
       - name: Build the code
         run: |
           echo "Building code with the specified parameters and Azure Blob cache..."
@@ -305,7 +309,3 @@ jobs:
           
           # Clean up any temporary mounts
           sudo umount /tmp/* 2>/dev/null || true
-          
-      - name: Clean up possible Bazel corrupt installation
-        run: |
-          rm -rf /bazel_root/build_ubuntu_b77b7d5/install/7ddb90f005a5de4b8921e9ce1a0d9e48
