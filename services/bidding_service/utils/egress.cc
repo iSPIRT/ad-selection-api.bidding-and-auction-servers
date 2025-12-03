@@ -29,7 +29,7 @@ bool AdtechEgresSchemaValid(absl::string_view adtech_schema,
 
 void UnsignedIntToBits(uint num, std::vector<bool>& bit_rep) {
   int i = bit_rep.size() - 1;
-  while (num) {
+  while (num && i >= 0) {
     if (num % 2 > 0) {
       bit_rep[i] = true;
     }
