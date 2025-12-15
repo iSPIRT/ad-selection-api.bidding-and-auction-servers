@@ -67,8 +67,7 @@ absl::StatusOr<std::string> GzipCompress(absl::string_view uncompressed) {
 }
 
 absl::StatusOr<std::string> GzipDecompress(absl::string_view compressed) {
-  z_stream zs;
-  memset(&zs, 0, sizeof(zs));
+  z_stream zs{};
   zs.next_in = (Bytef*)compressed.data();
   zs.avail_in = compressed.size();
 
