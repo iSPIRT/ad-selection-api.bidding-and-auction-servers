@@ -11,20 +11,26 @@ python_deps()
 
 python_register_toolchains("//builders/bazel")
 
-http_archive(
+#http_archive(
+#    name = "google_privacysandbox_servers_common",
+#    auth_patterns = {
+#    },
+#    patch_args = ["-p1"],
+#    patches = [
+#        "//third_party:data-plane-azure-kms-client-provider-utils.patch",
+#        "//third_party:data-plane-azure-kms-fixes.patch",
+#        "//third_party:data-plane-azure-dd8c778001.patch",
+#    ],
+#    sha256 = "ae9ed26c6eed1c6a63cb9a20094dc737b4a3cda1db26b2d4f2a9207a21244d86",
+#    strip_prefix = "ad-selection-api.data-plane-shared-libraries-main",
+#    urls = [
+#        "https://github.com/iSPIRT/ad-selection-api.data-plane-shared-libraries/archive/refs/heads/main.zip",
+#    ],
+#)
+
+local_repository(
     name = "google_privacysandbox_servers_common",
-    auth_patterns = {
-    },
-    patch_args = ["-p1"],
-    patches = [
-        "//third_party:data-plane-azure-kms-client-provider-utils.patch",
-        "//third_party:data-plane-azure-kms-fixes.patch",
-        "//third_party:data-plane-azure-dd8c778001.patch",
-    ],
-    strip_prefix = "ad-selection-api.data-plane-shared-libraries-main",
-    urls = [
-        "https://github.com/iSPIRT/ad-selection-api.data-plane-shared-libraries/archive/refs/heads/main.zip",
-    ],
+    path = "third_party/ad-selection-api.data-plane-shared-libraries",
 )
 
 load(

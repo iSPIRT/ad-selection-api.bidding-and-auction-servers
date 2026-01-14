@@ -42,7 +42,7 @@ declare INSTANCE
 declare -i E2E=0
 declare BUILD_FLAVOR=prod
 declare PLATFORM
-declare -i VERBOSE=0
+declare -i VERBOSE=1
 declare VERBOSE_ARG=
 declare -i PRECOMMIT_ONLY=0
 declare -i SKIP_PRECOMMIT=0

@@ -191,7 +191,7 @@ module "buyer" {
     KV_SERVER_EGRESS_TLS               = ""
     MAX_ALLOWED_SIZE_DEBUG_URL_BYTES   = "" # Example: "65536"
     MAX_ALLOWED_SIZE_ALL_DEBUG_URLS_KB = "" # Example: "3000"
-    PS_VERBOSITY                       = "" # Example: "10"
+    PS_VERBOSITY                       = "10" # Example: "10"
     ROMA_TIMEOUT_MS                    = ""
     SELECTION_KV_SERVER_ADDR           = ""
     SELECTION_KV_SERVER_EGRESS_TLS     = ""
