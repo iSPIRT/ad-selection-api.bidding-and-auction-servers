@@ -15,12 +15,6 @@ http_archive(
     name = "google_privacysandbox_servers_common",
     auth_patterns = {
     },
-    patch_args = ["-p1"],
-    patches = [
-        "//third_party:data-plane-azure-kms-client-provider-utils.patch",
-        "//third_party:data-plane-azure-kms-fixes.patch",
-        "//third_party:data-plane-azure-dd8c778001.patch",
-    ],
     strip_prefix = "ad-selection-api.data-plane-shared-libraries-main",
     urls = [
         "https://github.com/iSPIRT/ad-selection-api.data-plane-shared-libraries/archive/refs/heads/main.zip",
