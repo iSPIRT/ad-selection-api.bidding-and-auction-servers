@@ -12,12 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
-    "container_layer",
-)
-load("@io_bazel_rules_docker//contrib:test.bzl", "container_test")
+load("@container_structure_test//:defs.bzl", "container_structure_test")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -51,14 +47,6 @@ pkg_tar(
     srcs = server_binaries,
 )
 
-container_layer(
-    name = "server_binary_layer",
-    directory = "/",
-    tars = [
-        ":server_binaries_tar",
-    ],
-)
-
 pkg_files(
     name = "root_certs",
     srcs = ["@com_github_grpc_grpc//:root_certificates"],
@@ -76,41 +64,44 @@ pkg_tar(
     srcs = root_certs_files,
 )
 
-container_layer(
-    name = "root_certs_layer",
-    directory = "/",
-    tars = [
-        ":root_certs_tar",
-    ],
-)
-
-container_image(
+oci_image(
     name = "server_docker_image",
     base = select({
-        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64//image",
-        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64//image",
+        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64",
+        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64",
     }),
     cmd = [
         "/server/bin/init_server_basic",
     ],
     entrypoint = ["sh"],
+    exposed_ports = [
+        "50051",
+        "50050",
+    ],
     labels = {"tee.launch_policy.log_redirect": "always"},
-    layers = [
-        ":server_binary_layer",
-        ":root_certs_layer",
+    tars = [
+        ":server_binaries_tar",
+        ":root_certs_tar",
     ] + select({
         "//:e2e_build": [
         ],
         "//conditions:default": [],
     }),
-    # BFE and BFE Non-TLS Healthcheck ports, respectively:
-    ports = [
-        "50051",
-        "50050",
-    ],
 )
 
-container_test(
+oci_load(
+    name = "server_docker_image_load",
+    image = ":server_docker_image",
+    repo_tags = [],
+)
+
+filegroup(
+    name = "server_docker_image.tar",
+    srcs = [":server_docker_image_load"],
+    output_group = "tarball",
+)
+
+container_structure_test(
     name = "structure_test",
     size = "large",
     configs = ["test/structure.yaml"],
@@ -118,7 +109,7 @@ container_test(
     image = ":server_docker_image",
 )
 
-container_test(
+container_structure_test(
     name = "commands_test",
     size = "large",
     configs = ["test/commands.yaml"],

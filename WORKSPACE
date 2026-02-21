@@ -1,12 +1,6 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//builders/bazel:deps.bzl", "python_deps", "python_register_toolchains")
 
-http_archive(
-    name = "io_bazel_rules_docker",
-    sha256 = "b1e80761a8a8243d03ebca8845e9cc1ba6c82ce7c5179ce2b295cd36f7e394bf",
-    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.25.0/rules_docker-v0.25.0.tar.gz"],
-)
-
 python_deps()
 
 python_register_toolchains("//builders/bazel")
@@ -55,17 +49,6 @@ data_plane_shared_deps3()
 load("@google_privacysandbox_servers_common//third_party:deps4.bzl", data_plane_shared_deps4 = "deps4")
 
 data_plane_shared_deps4()
-
-load(
-    "@io_bazel_rules_docker//repositories:repositories.bzl",
-    container_repositories = "repositories",
-)
-
-container_repositories()
-
-load("@io_bazel_rules_docker//repositories:deps.bzl", rules_docker_deps = "deps")
-
-rules_docker_deps()
 
 load("//third_party:container_deps.bzl", "container_deps")
 

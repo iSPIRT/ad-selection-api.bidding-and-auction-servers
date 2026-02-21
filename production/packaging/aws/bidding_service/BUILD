@@ -13,13 +13,9 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@container_structure_test//:defs.bzl", "container_structure_test")
 load("@google_privacysandbox_servers_common//third_party:container_deps.bzl", "get_user")
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
-    "container_layer",
-)
-load("@io_bazel_rules_docker//contrib:test.bzl", "container_test")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -78,19 +74,6 @@ pkg_tar(
     srcs = server_binaries,
 )
 
-container_layer(
-    name = "server_binary_layer",
-    directory = "/",
-    env = {
-        "GLOG_logtostderr": "1",
-        "GLOG_stderrthreshold": "0",
-        "GRPC_DNS_RESOLVER": "native",
-    },
-    tars = [
-        ":server_binaries_tar",
-    ],
-)
-
 cddl_specs = [
     "//services/bidding_service:packaged_cddl_specs",
 ]
@@ -103,14 +86,6 @@ pkg_zip(
 pkg_tar(
     name = "cddl_specs_tar",
     srcs = cddl_specs,
-)
-
-container_layer(
-    name = "cddl_specs_layer",
-    directory = "/",
-    tars = [
-        ":cddl_specs_tar",
-    ],
 )
 
 copy_file(
@@ -131,12 +106,10 @@ pkg_tar(
     srcs = [":libcddl_so_lib"],
 )
 
-container_layer(
-    name = "cddl_lib_layer",
-    directory = "/usr/lib/x86_64-linux-gnu/",
-    tars = [
-        ":cddl_lib_artifacts_tar",
-    ],
+pkg_tar(
+    name = "cddl_lib_layer_tar",
+    srcs = [":libcddl_so_lib"],
+    package_dir = "/usr/lib/x86_64-linux-gnu/",
 )
 
 pkg_files(
@@ -156,14 +129,6 @@ pkg_tar(
     srcs = root_certs_files,
 )
 
-container_layer(
-    name = "root_certs_layer",
-    directory = "/",
-    tars = [
-        ":root_certs_tar",
-    ],
-)
-
 pkg_tar(
     name = "var_run_runsc_tar_{}".format(user.flavor),
     srcs = [
@@ -175,20 +140,13 @@ pkg_tar(
     ),
 )
 
-container_layer(
-    name = "byob_runtime_container_layer",
-    tars = [
-        "@google_privacysandbox_servers_common//src/roma/byob/container:byob_runtime_container_with_dir_{user}.tar".format(user = user.user),
-    ],
-)
-
 # This image target is meant for testing running the server in an enclave using
 # aws proxy to abstract vsock communication.
-container_image(
+oci_image(
     name = "server_docker_image",
     base = select({
-        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64//image",
-        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64//image",
+        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64",
+        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64",
     }),
     cmd = [
         "/proxify",
@@ -199,26 +157,42 @@ container_image(
     entrypoint = [
         "/busybox/sh",
     ],
-    layers = [
-        ":cddl_lib_layer",
-        ":cddl_specs_layer",
-        ":root_certs_layer",
-        ":server_binary_layer",
-        ":byob_runtime_container_layer",
+    env = {
+        "GLOG_logtostderr": "1",
+        "GLOG_stderrthreshold": "0",
+        "GRPC_DNS_RESOLVER": "native",
+    },
+    labels = {"tee.launch_policy.log_redirect": "always"},
+    tars = [
+        ":cddl_lib_layer_tar",
+        ":cddl_specs_tar",
+        ":root_certs_tar",
+        ":server_binaries_tar",
+        "@google_privacysandbox_servers_common//src/roma/byob/container:byob_runtime_container_with_dir_{user}.tar".format(user = user.user),
+        "@google_privacysandbox_servers_common//src/aws/proxy:libnsm_and_proxify_tar",
+        "@google_privacysandbox_servers_common//src/cpio/client_providers/kms_client_provider/aws:kms_binaries",
+        ":var_run_runsc_tar_{user}".format(user = user.user),
+        "@google_privacysandbox_servers_common//src/roma/byob/container:gvisor_tar_{user}".format(user = user.user),
     ] + select({
         "//:e2e_build": [
         ],
         "//conditions:default": [],
     }),
-    tars = [
-        "@google_privacysandbox_servers_common//src/aws/proxy:libnsm_and_proxify_tar",
-        "@google_privacysandbox_servers_common//src/cpio/client_providers/kms_client_provider/aws:kms_binaries",
-        ":var_run_runsc_tar_{user}".format(user = user.user),
-        "@google_privacysandbox_servers_common//src/roma/byob/container:gvisor_tar_{user}".format(user = user.user),
-    ],
 )
 
-container_test(
+oci_load(
+    name = "server_docker_image_load",
+    image = ":server_docker_image",
+    repo_tags = [],
+)
+
+filegroup(
+    name = "server_docker_image.tar",
+    srcs = [":server_docker_image_load"],
+    output_group = "tarball",
+)
+
+container_structure_test(
     name = "structure_test",
     size = "large",
     configs = ["test/structure.yaml"],
@@ -226,7 +200,7 @@ container_test(
     image = ":server_docker_image",
 )
 
-container_test(
+container_structure_test(
     name = "commands_test",
     size = "large",
     configs = ["test/commands.yaml"],

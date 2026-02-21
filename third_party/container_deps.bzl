@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,7 @@
 # limitations under the License.
 
 load("@google_privacysandbox_servers_common//third_party:container_deps.bzl", common_container_deps = "container_deps")
-load("@io_bazel_rules_docker//container:container.bzl", "container_pull")
+load("@rules_oci//oci:pull.bzl", "oci_pull")
 
 def container_deps():
     common_container_deps()
@@ -58,11 +58,10 @@ def container_deps():
     }
 
     [
-        container_pull(
+        oci_pull(
             name = img_name + "-" + arch,
             digest = "sha256:" + hash,
-            registry = image["registry"],
-            repository = image["repository"],
+            image = "{}/{}".format(image["registry"], image["repository"]),
         )
         for img_name, image in images.items()
         for arch, hash in image["arch_hashes"].items()

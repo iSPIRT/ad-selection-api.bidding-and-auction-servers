@@ -12,13 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_flatten",
-    "container_image",
-    "container_layer",
-)
-load("@io_bazel_rules_docker//contrib:test.bzl", "container_test")
+load("@container_structure_test//:defs.bzl", "container_structure_test")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -52,14 +47,6 @@ pkg_tar(
     srcs = server_binaries,
 )
 
-container_layer(
-    name = "server_binary_layer",
-    directory = "/",
-    tars = [
-        ":server_binaries_tar",
-    ],
-)
-
 pkg_files(
     name = "etc_envoy_files",
     srcs = [
@@ -80,35 +67,49 @@ pkg_tar(
     ],
 )
 
-container_layer(
-    name = "envoy_config_layer",
-    directory = "/",
-    tars = [
-        ":envoy_config_tar",
-    ],
-    visibility = [
-        "//production/packaging:__subpackages__",
-        "//services:__subpackages__",
-    ],
-)
-
-container_flatten(
+# Flatten the envoy-distroless OCI image into a single filesystem tar.
+# This replaces container_flatten from rules_docker.
+genrule(
     name = "envoy_distroless_flat",
-    image = select({
-        "@platforms//cpu:arm64": "@envoy-distroless-arm64//image",
-        "@platforms//cpu:x86_64": "@envoy-distroless-amd64//image",
+    srcs = select({
+        "@platforms//cpu:arm64": ["@envoy-distroless-arm64//:index.json"],
+        "@platforms//cpu:x86_64": ["@envoy-distroless-amd64//:index.json"],
     }),
-)
-
-container_layer(
-    name = "envoy_distroless_layer",
-    tars = [
-        ":envoy_distroless_flat.tar",
-    ],
-    visibility = [
-        "//production/packaging:__subpackages__",
-        "//services:__subpackages__",
-    ],
+    outs = ["envoy_distroless_flat.tar"],
+    cmd_bash = """
+        set -eo pipefail
+        INDEX_JSON=""
+        for f in $(SRCS); do
+            if [[ "$$f" == *"index.json" ]]; then
+                INDEX_JSON="$$f"
+                break
+            fi
+        done
+        if [[ -z "$$INDEX_JSON" ]]; then
+            echo "ERROR: index.json not found in OCI image srcs" >&2
+            exit 1
+        fi
+        IMG_DIR="$$(dirname "$$INDEX_JSON")"
+        TMPDIR="$$(mktemp -d)"
+        trap "rm -rf $$TMPDIR" EXIT
+        MANIFEST_HASH=$$(python3 -c "
+import json, sys
+with open('$$INDEX_JSON') as f:
+    idx = json.load(f)
+print(idx['manifests'][0]['digest'].replace('sha256:', ''))
+")
+        LAYERS=$$(python3 -c "
+import json, sys
+with open('$$IMG_DIR/blobs/sha256/$$MANIFEST_HASH') as f:
+    m = json.load(f)
+for l in m['layers']:
+    print(l['digest'].replace('sha256:', ''))
+")
+        for LAYER in $$LAYERS; do
+            tar -xzf "$$IMG_DIR/blobs/sha256/$$LAYER" -C "$$TMPDIR" 2>/dev/null || true
+        done
+        tar -cf "$@" -C "$$TMPDIR" .
+    """,
 )
 
 pkg_files(
@@ -128,44 +129,47 @@ pkg_tar(
     srcs = root_certs_files,
 )
 
-container_layer(
-    name = "root_certs_layer",
-    directory = "/",
-    tars = [
-        ":root_certs_tar",
-    ],
-)
-
-container_image(
+oci_image(
     name = "server_docker_image",
     base = select({
-        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64//image",
-        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64//image",
+        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64",
+        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64",
     }),
     cmd = [
         "/server/bin/init_server_basic",
     ],
     entrypoint = ["sh"],
+    exposed_ports = [
+        "51052",
+        "50051",
+        "50050",
+    ],
     labels = {"tee.launch_policy.log_redirect": "always"},
-    layers = [
-        ":server_binary_layer",
-        ":envoy_distroless_layer",
-        ":envoy_config_layer",
-        ":root_certs_layer",
+    tars = [
+        ":server_binaries_tar",
+        ":envoy_distroless_flat",
+        ":envoy_config_tar",
+        ":root_certs_tar",
     ] + select({
         "//:e2e_build": [
         ],
         "//conditions:default": [],
     }),
-    # BFE and BFE Non-TLS Healthcheck ports, respectively:
-    ports = [
-        "51052",
-        "50051",
-        "50050",
-    ],
 )
 
-container_test(
+oci_load(
+    name = "server_docker_image_load",
+    image = ":server_docker_image",
+    repo_tags = [],
+)
+
+filegroup(
+    name = "server_docker_image.tar",
+    srcs = [":server_docker_image_load"],
+    output_group = "tarball",
+)
+
+container_structure_test(
     name = "structure_test",
     size = "large",
     configs = ["test/structure.yaml"],
@@ -173,7 +177,7 @@ container_test(
     image = ":server_docker_image",
 )
 
-container_test(
+container_structure_test(
     name = "commands_test",
     size = "large",
     configs = ["test/commands.yaml"],

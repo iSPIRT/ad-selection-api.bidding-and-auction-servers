@@ -12,12 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
-    "container_layer",
-)
-load("@io_bazel_rules_docker//contrib:test.bzl", "container_test")
+load("@container_structure_test//:defs.bzl", "container_structure_test")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -59,19 +55,6 @@ pkg_tar(
     srcs = server_binaries,
 )
 
-container_layer(
-    name = "server_binary_layer",
-    directory = "/",
-    env = {
-        "GLOG_logtostderr": "1",
-        "GLOG_stderrthreshold": "0",
-        "GRPC_DNS_RESOLVER": "native",
-    },
-    tars = [
-        ":server_binaries_tar",
-    ],
-)
-
 pkg_files(
     name = "root_certs",
     srcs = ["@com_github_grpc_grpc//:root_certificates"],
@@ -89,21 +72,13 @@ pkg_tar(
     srcs = root_certs_files,
 )
 
-container_layer(
-    name = "root_certs_layer",
-    directory = "/",
-    tars = [
-        ":root_certs_tar",
-    ],
-)
-
 # This image target is meant for testing running the server in an enclave using
 # aws proxy to abstract vsock communication.
-container_image(
+oci_image(
     name = "server_docker_image",
     base = select({
-        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64//image",
-        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64//image",
+        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64",
+        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64",
     }),
     cmd = [
         "/proxify",
@@ -114,21 +89,37 @@ container_image(
     entrypoint = [
         "/busybox/sh",
     ],
-    layers = [
-        ":root_certs_layer",
-        ":server_binary_layer",
+    env = {
+        "GLOG_logtostderr": "1",
+        "GLOG_stderrthreshold": "0",
+        "GRPC_DNS_RESOLVER": "native",
+    },
+    labels = {"tee.launch_policy.log_redirect": "always"},
+    tars = [
+        ":root_certs_tar",
+        ":server_binaries_tar",
+        "@google_privacysandbox_servers_common//src/aws/proxy:libnsm_and_proxify_tar",
+        "@google_privacysandbox_servers_common//src/cpio/client_providers/kms_client_provider/aws:kms_binaries",
     ] + select({
         "//:e2e_build": [
         ],
         "//conditions:default": [],
     }),
-    tars = [
-        "@google_privacysandbox_servers_common//src/aws/proxy:libnsm_and_proxify_tar",
-        "@google_privacysandbox_servers_common//src/cpio/client_providers/kms_client_provider/aws:kms_binaries",
-    ],
 )
 
-container_test(
+oci_load(
+    name = "server_docker_image_load",
+    image = ":server_docker_image",
+    repo_tags = [],
+)
+
+filegroup(
+    name = "server_docker_image.tar",
+    srcs = [":server_docker_image_load"],
+    output_group = "tarball",
+)
+
+container_structure_test(
     name = "structure_test",
     size = "large",
     configs = ["test/structure.yaml"],
@@ -136,7 +127,7 @@ container_test(
     image = ":server_docker_image",
 )
 
-container_test(
+container_structure_test(
     name = "commands_test",
     size = "large",
     configs = ["test/commands.yaml"],

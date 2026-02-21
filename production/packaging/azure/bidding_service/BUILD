@@ -13,13 +13,8 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@google_privacysandbox_servers_common//third_party:container_deps.bzl", "get_user")
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
-    "container_layer",
-)
-load("@io_bazel_rules_docker//contrib:test.bzl", "container_test")
+load("@container_structure_test//:defs.bzl", "container_structure_test")
+load("@rules_oci//oci:defs.bzl", "oci_image", "oci_load")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -27,8 +22,6 @@ load(
 )
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
-
-user = get_user("root")
 
 pkg_files(
     name = "server_executables",
@@ -70,19 +63,6 @@ pkg_tar(
     srcs = server_binaries,
 )
 
-container_layer(
-    name = "server_binary_layer",
-    directory = "/",
-    env = {
-        "GLOG_logtostderr": "1",
-        "GLOG_stderrthreshold": "0",
-        "GRPC_DNS_RESOLVER": "native",
-    },
-    tars = [
-        ":server_binaries_tar",
-    ],
-)
-
 cddl_specs = [
     "//services/bidding_service:packaged_cddl_specs",
 ]
@@ -95,14 +75,6 @@ pkg_zip(
 pkg_tar(
     name = "cddl_specs_tar",
     srcs = cddl_specs,
-)
-
-container_layer(
-    name = "cddl_specs_layer",
-    directory = "/",
-    tars = [
-        ":cddl_specs_tar",
-    ],
 )
 
 copy_file(
@@ -123,12 +95,10 @@ pkg_tar(
     srcs = [":libcddl_so_lib"],
 )
 
-container_layer(
-    name = "cddl_lib_layer",
-    directory = "/lib",
-    tars = [
-        ":cddl_lib_artifacts_tar",
-    ],
+pkg_tar(
+    name = "cddl_lib_layer_tar",
+    srcs = [":libcddl_so_lib"],
+    package_dir = "/lib",
 )
 
 pkg_files(
@@ -148,48 +118,53 @@ pkg_tar(
     srcs = root_certs_files,
 )
 
-container_layer(
-    name = "root_certs_layer",
-    directory = "/",
-    tars = [
-        ":root_certs_tar",
-    ],
-)
-
 # BYOB is not supported in Azure
 
-container_image(
+oci_image(
     name = "server_docker_image",
     base = select({
-        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64//image",
-        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64//image",
+        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64",
+        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64",
     }),
     cmd = [
         "/server/bin/init_server_basic",
     ],
-    entrypoint = [
-        "sh",
-    ],
+    entrypoint = ["sh"],
+    env = {
+        "GLOG_logtostderr": "1",
+        "GLOG_stderrthreshold": "0",
+        "GRPC_DNS_RESOLVER": "native",
+    },
+    exposed_ports = ["50051"],
     labels = {"tee.launch_policy.log_redirect": "always"},
-    layers = [
-        ":cddl_lib_layer",
-        ":cddl_specs_layer",
-        ":server_binary_layer",
+    tars = [
+        ":cddl_lib_layer_tar",
+        ":cddl_specs_tar",
+        ":server_binaries_tar",
         # BYOB is not supported in Azure
-        ":root_certs_layer",
+        ":root_certs_tar",
+        # BYOB is not supported in Azure
+        "//tools/udf/generate_bid/samples:sample_generate_bid_execs_tar",
     ] + select({
         "//:e2e_build": [
         ],
         "//conditions:default": [],
     }),
-    ports = ["50051"],
-    tars = [
-        # BYOB is not supported in Azure
-        "//tools/udf/generate_bid/samples:sample_generate_bid_execs_tar",
-    ],
 )
 
-container_test(
+oci_load(
+    name = "server_docker_image_load",
+    image = ":server_docker_image",
+    repo_tags = [],
+)
+
+filegroup(
+    name = "server_docker_image.tar",
+    srcs = [":server_docker_image_load"],
+    output_group = "tarball",
+)
+
+container_structure_test(
     name = "structure_test",
     size = "large",
     configs = ["test/structure.yaml"],
@@ -197,7 +172,7 @@ container_test(
     image = ":server_docker_image",
 )
 
-container_test(
+container_structure_test(
     name = "commands_test",
     size = "large",
     configs = ["test/commands.yaml"],
