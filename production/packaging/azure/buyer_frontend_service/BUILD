@@ -72,24 +72,18 @@ pkg_tar(
 genrule(
     name = "envoy_distroless_flat",
     srcs = select({
-        "@platforms//cpu:arm64": ["@envoy-distroless-arm64//:index.json"],
-        "@platforms//cpu:x86_64": ["@envoy-distroless-amd64//:index.json"],
+        "@platforms//cpu:arm64": ["@envoy-distroless-arm64//:envoy-distroless-arm64"],
+        "@platforms//cpu:x86_64": ["@envoy-distroless-amd64//:envoy-distroless-amd64"],
     }),
     outs = ["envoy_distroless_flat.tar"],
     cmd_bash = """
         set -eo pipefail
-        INDEX_JSON=""
-        for f in $(SRCS); do
-            if [[ "$$f" == *"index.json" ]]; then
-                INDEX_JSON="$$f"
-                break
-            fi
-        done
-        if [[ -z "$$INDEX_JSON" ]]; then
-            echo "ERROR: index.json not found in OCI image srcs" >&2
+        IMG_DIR="$(SRCS)"
+        INDEX_JSON="$$IMG_DIR/index.json"
+        if [[ ! -f "$$INDEX_JSON" ]]; then
+            echo "ERROR: index.json not found in OCI image dir $$IMG_DIR" >&2
             exit 1
         fi
-        IMG_DIR="$$(dirname "$$INDEX_JSON")"
         TMPDIR="$$(mktemp -d)"
         trap "rm -rf $$TMPDIR" EXIT
         MANIFEST_HASH=$$(python3 -c "
@@ -174,7 +168,7 @@ container_structure_test(
     size = "large",
     configs = ["test/structure.yaml"],
     driver = "tar",
-    image = ":server_docker_image",
+    image = ":server_docker_image.tar",
 )
 
 container_structure_test(
