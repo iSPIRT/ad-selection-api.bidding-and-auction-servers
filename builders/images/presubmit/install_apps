@@ -56,7 +56,7 @@ function install_packages() {
     libcurl4t64="8.5.*" \
     curl="8.5.*" \
     lsb-release="12.0*" \
-    openjdk-11-jre="11.0.*" \
+    openjdk-17-jre="17.*" \
     python3.12-venv="3.12.*" \
     shellcheck="0.9.*" \
     software-properties-common="0.99.*" \

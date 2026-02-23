@@ -1,10 +1,14 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//builders/bazel:deps.bzl", "python_deps", "python_register_toolchains")
 
+# url update for bazel downloads from previous gcs bucket
+# https://github.com/bazelbuild/rules_docker/commit/0e9c3b0
+# upgrade to bazel Long term supported OCI from docker
 http_archive(
     name = "io_bazel_rules_docker",
-    sha256 = "b1e80761a8a8243d03ebca8845e9cc1ba6c82ce7c5179ce2b295cd36f7e394bf",
-    urls = ["https://github.com/bazelbuild/rules_docker/releases/download/v0.25.0/rules_docker-v0.25.0.tar.gz"],
+    sha256 = "3b025c87cbbb7a579f12c11d8cf0e89878c1d98bd3be69558b0859d24e60cd74",
+    strip_prefix = "rules_docker-0e9c3b068d05f20adf7ccdea486fcb27e71593f3",
+    urls = ["https://github.com/bazelbuild/rules_docker/archive/0e9c3b0.tar.gz"],
 )
 
 python_deps()
@@ -21,6 +25,7 @@ http_archive(
         "//third_party:data-plane-azure-kms-fixes.patch",
         "//third_party:data-plane-azure-dd8c778001.patch",
     ],
+    sha256 = "ae9ed26c6eed1c6a63cb9a20094dc737b4a3cda1db26b2d4f2a9207a21244d86",
     strip_prefix = "ad-selection-api.data-plane-shared-libraries-main",
     urls = [
         "https://github.com/iSPIRT/ad-selection-api.data-plane-shared-libraries/archive/refs/heads/main.zip",

@@ -1,3 +1,13 @@
+# Use Java 17 instead of Bazel's embedded JDK (Zulu 11.0.6, vulnerable to
+# CVE-2021-* Azul Zulu Multiple Vulnerabilities). Java 17 is an LTS release
+# outside the affected Java 11 version range entirely. Both server and tool
+# runtimes use Java 17 for consistency with Bazel 6.x.
+# TODO: upgrade to Java 21 when migrating to Bazel 7.4.1+
+startup --server_javabase=/usr/lib/jvm/java-17-openjdk-amd64
+# remotejdk_17 is the highest version registered by Bazel 6.x's @bazel_tools//tools/jdk.
+# TODO: upgrade to remotejdk_21 when migrating to Bazel 7.4.1+
+build --tool_java_runtime_version=remotejdk_17
+
 build --announce_rc
 build --verbose_failures
 build --config=clang

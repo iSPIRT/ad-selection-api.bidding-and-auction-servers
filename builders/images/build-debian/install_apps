@@ -84,6 +84,7 @@ function install_misc() {
     patch="2.7.*" \
     rename="1.10-*" \
     software-properties-common="0.99.*" \
+    openjdk-17-jre-headless="17.*" \
     unzip="6.0-*" \
     wget="1.20.*" \
     xz-utils="5.2.*" \

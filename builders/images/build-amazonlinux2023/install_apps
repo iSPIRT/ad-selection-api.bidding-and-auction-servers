@@ -66,6 +66,16 @@ function install_gcc() {
   dnf install -y "gcc-11.3.*"
 }
 
+function install_java() {
+  dnf install -y "java-17-amazon-corretto-headless"
+  # Symlink to the standard path used by --server_javabase in .bazelrc,
+  # since Corretto installs to a different path than Ubuntu OpenJDK.
+  local java_home
+  java_home="$(java -XshowSettings:property -version 2>&1 | awk '/java.home/{print $NF}')"
+  mkdir -p /usr/lib/jvm
+  ln -sfn "${java_home}" /usr/lib/jvm/java-17-openjdk-amd64
+}
+
 function install_misc() {
   dnf install -y \
     "gettext-0.21*" \
@@ -103,6 +113,7 @@ install_python
 dnf_update
 install_nitro "${BUILD_ARCH}"
 install_misc
+install_java
 install_clang
 install_golang "${BUILD_ARCH}"
 install_gcc
