@@ -30,9 +30,9 @@ def container_deps():
         },
         "envoy-distroless": {
             "arch_hashes": {
-                # v1.23.1
-                "amd64": "e2c642bc6949cb3053810ca14524324d7daf884a0046d7173e46e2b003144f1d",
-                "arm64": "7763f6325882122afb1beb6ba0a047bed318368f9656fd9c1df675f3d89f1dbe",
+                # v1.31.4
+                "amd64": "f3e9f6139898db74177ac4f41dabd8750a39724ec28c5762a2c5ac61cc965253",
+                "arm64": "ed571f4a0e1ff09617cc845397cf320ceeeda74d9ebaadba78879e80a3008365",
             },
             "registry": "docker.io",
             "repository": "envoyproxy/envoy-distroless",
@@ -40,11 +40,11 @@ def container_deps():
         "runtime-cc-debian": {
             # debug build so we can use 'sh'
             "arch_hashes": {
-                "amd64": "6865ad48467c89c3c3524d4c426f52ad12d9ab7dec31fad31fae69da40eb6445",
-                "arm64": "3c399c24b13bfef7e38257831b1bb05cbddbbc4d0327df87a21b6fbbb2480bc9",
+                "amd64": "b0e4fa43f85883cb7045a9e9dbe741d3cbe66f4a29de35c40f2768beaf2c3804",
+                "arm64": "225cfdcc73b5c80678285de5d53ced9a98e029497b271332bcb26cba85e81ceb",
             },
             "registry": "gcr.io",
-            "repository": "distroless/cc-debian11",
+            "repository": "distroless/cc-debian12",
         },
         "runtime-debian-slim": {
             "arch_hashes": {

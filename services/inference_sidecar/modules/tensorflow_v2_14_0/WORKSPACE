@@ -66,6 +66,26 @@ load("@org_tensorflow//tensorflow:workspace3.bzl", "tf_workspace3")
 
 tf_workspace3()
 
+# Override rules_apple and apple_support BEFORE tf_workspace2() defines them at
+# older versions (2.3.0 / 1.6.0) that are incompatible with Bazel 7.
+# tf_http_archive uses native.existing_rule() and skips if already defined.
+# These versions match what gRPC's own grpc_deps.bzl specifies.
+http_archive(
+    name = "build_bazel_rules_apple",
+    sha256 = "34c41bfb59cdaea29ac2df5a2fa79e5add609c71bb303b2ebb10985f93fa20e7",
+    urls = [
+        "https://github.com/bazelbuild/rules_apple/releases/download/3.1.1/rules_apple.3.1.1.tar.gz",
+    ],
+)
+
+http_archive(
+    name = "build_bazel_apple_support",
+    sha256 = "cf4d63f39c7ba9059f70e995bf5fe1019267d3f77379c2028561a5d7645ef67c",
+    urls = [
+        "https://github.com/bazelbuild/apple_support/releases/download/1.11.1/apple_support.1.11.1.tar.gz",
+    ],
+)
+
 load("@org_tensorflow//tensorflow:workspace2.bzl", "tf_workspace2")
 
 tf_workspace2()
