@@ -12,6 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+common --noenable_bzlmod
+build --java_runtime_version=remotejdk_21
+build --tool_java_runtime_version=remotejdk_21
+build --features=-parse_headers
 build --experimental_repo_remote_exec
 
 build --announce_rc
