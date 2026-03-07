@@ -21,7 +21,7 @@ build --announce_rc
 build --verbose_failures
 build --config=clang
 build --compilation_mode=opt
-build --output_filter='^//((?!(third_party):).)*$'`
+build --output_filter='^//((?!(third_party):).)*$'
 build --color=yes
 
 build:clang --cxxopt=-fbracket-depth=512

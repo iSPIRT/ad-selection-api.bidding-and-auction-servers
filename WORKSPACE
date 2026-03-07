@@ -1,5 +1,9 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//builders/bazel:deps.bzl", "python_deps", "python_register_toolchains")
+load("//third_party:jdk_override.bzl", "jdk_21_override")
+
+# JDK 21.48.15 CA override for Nessus CVE compliance (must be before default is loaded)
+jdk_21_override()
 
 # rules_docker v0.26.0 (Bazel 7+ compatible, cfg=host→exec fix)
 
