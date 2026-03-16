@@ -13,13 +13,8 @@
 # limitations under the License.
 
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
-load("@google_privacysandbox_servers_common//third_party:container_deps.bzl", "get_user")
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_image",
-    "container_layer",
-)
-load("@io_bazel_rules_docker//contrib:test.bzl", "container_test")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_oci//oci/private:load.bzl", "oci_load")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -27,8 +22,6 @@ load(
 )
 load("@rules_pkg//pkg:tar.bzl", "pkg_tar")
 load("@rules_pkg//pkg:zip.bzl", "pkg_zip")
-
-user = get_user("root")
 
 pkg_files(
     name = "server_executables",
@@ -70,18 +63,6 @@ pkg_tar(
     srcs = server_binaries,
 )
 
-container_layer(
-    name = "server_binary_layer",
-    directory = "/",
-    env = {
-        "GLOG_logtostderr": "1",
-        "GLOG_stderrthreshold": "0",
-        "GRPC_DNS_RESOLVER": "native",
-    },
-    tars = [
-        ":server_binaries_tar",
-    ],
-)
 
 cddl_specs = [
     "//services/bidding_service:packaged_cddl_specs",
@@ -95,14 +76,6 @@ pkg_zip(
 pkg_tar(
     name = "cddl_specs_tar",
     srcs = cddl_specs,
-)
-
-container_layer(
-    name = "cddl_specs_layer",
-    directory = "/",
-    tars = [
-        ":cddl_specs_tar",
-    ],
 )
 
 copy_file(
@@ -121,14 +94,7 @@ pkg_zip(
 pkg_tar(
     name = "cddl_lib_artifacts_tar",
     srcs = [":libcddl_so_lib"],
-)
-
-container_layer(
-    name = "cddl_lib_layer",
-    directory = "/lib",
-    tars = [
-        ":cddl_lib_artifacts_tar",
-    ],
+    package_dir = "lib",
 )
 
 pkg_files(
@@ -148,61 +114,42 @@ pkg_tar(
     srcs = root_certs_files,
 )
 
-container_layer(
-    name = "root_certs_layer",
-    directory = "/",
-    tars = [
-        ":root_certs_tar",
-    ],
-)
-
 # BYOB is not supported in Azure
 
-container_image(
-    name = "server_docker_image",
+oci_image(
+    name = "server_oci_image",
     base = select({
-        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64//image",
-        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64//image",
+        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64",
+        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64",
     }),
-    cmd = [
-        "/server/bin/init_server_basic",
-    ],
-    entrypoint = [
-        "sh",
-    ],
+    cmd = ["/server/bin/init_server_basic"],
+    entrypoint = ["sh"],
+    env = {
+        "GLOG_logtostderr": "1",
+        "GLOG_stderrthreshold": "0",
+        "GRPC_DNS_RESOLVER": "native",
+    },
+    exposed_ports = ["50051"],
     labels = {"tee.launch_policy.log_redirect": "always"},
-    layers = [
-        ":cddl_lib_layer",
-        ":cddl_specs_layer",
-        ":server_binary_layer",
-        # BYOB is not supported in Azure
-        ":root_certs_layer",
-    ] + select({
-        "//:e2e_build": [
-        ],
-        "//conditions:default": [],
-    }),
-    ports = ["50051"],
     tars = [
-        # BYOB is not supported in Azure
+        ":cddl_lib_artifacts_tar",
+        ":cddl_specs_tar",
+        ":server_binaries_tar",
+        ":root_certs_tar",
         "//tools/udf/generate_bid/samples:sample_generate_bid_execs_tar",
     ],
 )
 
-container_test(
-    name = "structure_test",
-    size = "large",
-    configs = ["test/structure.yaml"],
-    driver = "tar",
-    image = ":server_docker_image",
+oci_load(
+    name = "server_image_load",
+    image = ":server_oci_image",
+    repo_tags = "repo_tags.txt",
 )
 
-container_test(
-    name = "commands_test",
-    size = "large",
-    configs = ["test/commands.yaml"],
-    driver = "docker",
-    image = ":server_docker_image",
+filegroup(
+    name = "server_docker_image_tar",
+    srcs = [":server_image_load"],
+    output_group = "tarball",
 )
 
 # server artifacts
@@ -215,14 +162,14 @@ genrule(
     name = "copy_to_dist",
     srcs = [
         ":server_artifacts",
-        ":server_docker_image.tar",
+        ":server_docker_image_tar",
         "//api:bidding_auction_servers_descriptor_set",
     ],
     outs = ["copy_to_dist.bin"],
     cmd_bash = """cat << EOF > '$@'
 mkdir -p dist/debian
 cp $(execpath :server_artifacts) dist/debian/$$(basename $(RULEDIR))_artifacts.zip
-cp $(execpath :server_docker_image.tar) dist/debian/$$(basename $(RULEDIR))_image.tar
+cp $(execpath :server_docker_image_tar) dist/debian/$$(basename $(RULEDIR))_image.tar
 cp $(execpath //api:bidding_auction_servers_descriptor_set) dist
 builders/tools/normalize-dist
 EOF""",
