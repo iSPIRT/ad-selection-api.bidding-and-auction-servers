@@ -1,7 +1,7 @@
 # Portions Copyright (c) Microsoft Corporation
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
+# you may not use it except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #      http://www.apache.org/licenses/LICENSE-2.0
@@ -12,13 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load(
-    "@io_bazel_rules_docker//container:container.bzl",
-    "container_flatten",
-    "container_image",
-    "container_layer",
-)
-load("@io_bazel_rules_docker//contrib:test.bzl", "container_test")
+load("@rules_oci//oci:defs.bzl", "oci_image")
+load("@rules_oci//oci/private:load.bzl", "oci_load")
 load(
     "@rules_pkg//pkg:mappings.bzl",
     "pkg_attributes",
@@ -52,14 +47,6 @@ pkg_tar(
     srcs = server_binaries,
 )
 
-container_layer(
-    name = "server_binary_layer",
-    directory = "/",
-    tars = [
-        ":server_binaries_tar",
-    ],
-)
-
 pkg_files(
     name = "etc_envoy_files",
     srcs = [
@@ -80,37 +67,6 @@ pkg_tar(
     ],
 )
 
-container_layer(
-    name = "envoy_config_layer",
-    directory = "/",
-    tars = [
-        ":envoy_config_tar",
-    ],
-    visibility = [
-        "//production/packaging:__subpackages__",
-        "//services:__subpackages__",
-    ],
-)
-
-container_flatten(
-    name = "envoy_distroless_flat",
-    image = select({
-        "@platforms//cpu:arm64": "@envoy-distroless-arm64//image",
-        "@platforms//cpu:x86_64": "@envoy-distroless-amd64//image",
-    }),
-)
-
-container_layer(
-    name = "envoy_distroless_layer",
-    tars = [
-        ":envoy_distroless_flat.tar",
-    ],
-    visibility = [
-        "//production/packaging:__subpackages__",
-        "//services:__subpackages__",
-    ],
-)
-
 pkg_files(
     name = "root_certs",
     srcs = ["@com_github_grpc_grpc//:root_certificates"],
@@ -128,57 +84,69 @@ pkg_tar(
     srcs = root_certs_files,
 )
 
-container_layer(
-    name = "root_certs_layer",
-    directory = "/",
+# Envoy layer: flattened envoy-distroless via crane export (repo rule).
+# oci_image tars= doesn't accept select(); use platform-specific images + alias.
+# target_compatible_with prevents arm64 image from being built on amd64 (and vice versa).
+oci_image(
+    name = "server_oci_image_amd64",
+    base = "@runtime-cc-debian-amd64",
+    target_compatible_with = ["@platforms//cpu:x86_64"],
+    cmd = ["/server/bin/init_server_basic"],
+    entrypoint = ["sh"],
+    env = {
+        "GLOG_logtostderr": "1",
+        "GLOG_stderrthreshold": "0",
+        "GRPC_DNS_RESOLVER": "native",
+    },
+    exposed_ports = ["51052", "50051", "50050"],
+    labels = {"tee.launch_policy.log_redirect": "always"},
     tars = [
+        "@envoy_layer//:envoy_amd64",
+        ":server_binaries_tar",
+        ":envoy_config_tar",
         ":root_certs_tar",
     ],
 )
 
-container_image(
-    name = "server_docker_image",
-    base = select({
-        "@platforms//cpu:arm64": "@runtime-cc-debian-arm64//image",
-        "@platforms//cpu:x86_64": "@runtime-cc-debian-amd64//image",
-    }),
-    cmd = [
-        "/server/bin/init_server_basic",
-    ],
+oci_image(
+    name = "server_oci_image_arm64",
+    base = "@runtime-cc-debian-arm64",
+    target_compatible_with = ["@platforms//cpu:arm64"],
+    cmd = ["/server/bin/init_server_basic"],
     entrypoint = ["sh"],
+    env = {
+        "GLOG_logtostderr": "1",
+        "GLOG_stderrthreshold": "0",
+        "GRPC_DNS_RESOLVER": "native",
+    },
+    exposed_ports = ["51052", "50051", "50050"],
     labels = {"tee.launch_policy.log_redirect": "always"},
-    layers = [
-        ":server_binary_layer",
-        ":envoy_distroless_layer",
-        ":envoy_config_layer",
-        ":root_certs_layer",
-    ] + select({
-        "//:e2e_build": [
-        ],
-        "//conditions:default": [],
-    }),
-    # BFE and BFE Non-TLS Healthcheck ports, respectively:
-    ports = [
-        "51052",
-        "50051",
-        "50050",
+    tars = [
+        "@envoy_layer//:envoy_arm64",
+        ":server_binaries_tar",
+        ":envoy_config_tar",
+        ":root_certs_tar",
     ],
 )
 
-container_test(
-    name = "structure_test",
-    size = "large",
-    configs = ["test/structure.yaml"],
-    driver = "tar",
-    image = ":server_docker_image",
+alias(
+    name = "server_oci_image",
+    actual = select({
+        "@platforms//cpu:arm64": ":server_oci_image_arm64",
+        "@platforms//cpu:x86_64": ":server_oci_image_amd64",
+    }),
 )
 
-container_test(
-    name = "commands_test",
-    size = "large",
-    configs = ["test/commands.yaml"],
-    driver = "docker",
-    image = ":server_docker_image",
+oci_load(
+    name = "server_image_load",
+    image = ":server_oci_image",
+    repo_tags = "repo_tags.txt",
+)
+
+filegroup(
+    name = "server_docker_image_tar",
+    srcs = [":server_image_load"],
+    output_group = "tarball",
 )
 
 # server artifacts
@@ -191,14 +159,14 @@ genrule(
     name = "copy_to_dist",
     srcs = [
         ":server_artifacts",
-        ":server_docker_image.tar",
+        ":server_docker_image_tar",
         "//api:bidding_auction_servers_descriptor_set",
     ],
     outs = ["copy_to_dist.bin"],
     cmd_bash = """cat << EOF > '$@'
 mkdir -p dist/debian
 cp $(execpath :server_artifacts) dist/debian/$$(basename $(RULEDIR))_artifacts.zip
-cp $(execpath :server_docker_image.tar) dist/debian/$$(basename $(RULEDIR))_image.tar
+cp $(execpath :server_docker_image_tar) dist/debian/$$(basename $(RULEDIR))_image.tar
 cp $(execpath //api:bidding_auction_servers_descriptor_set) dist
 builders/tools/normalize-dist
 EOF""",

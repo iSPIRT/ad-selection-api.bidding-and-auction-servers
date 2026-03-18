@@ -198,7 +198,7 @@ FINAL SERVICE DOCKER IMAGE (e.g., buyer_frontend_service_image.tar)
 │   ├── install/
 │   │   └── {bazel_version_hash}/          ← Bazel install base
 │   │       ├── A-server.jar               ← Bazel server
-│   │       └── embedded_tools/jdk/        ← ⚠ EMBEDDED JDK (version = Bazel version)
+│   │       └── embedded_tools/jdk/        ← EMBEDDED JDK (deleted post-build by build_and_test_all_in_docker for Nessus compliance)
 │   ├── cache/                             ← repo cache (shared downloads)
 │   └── {output_base_hash}/
 │       └── external/                      ← fetched WORKSPACE deps for sidecars
@@ -340,8 +340,8 @@ COUPLING ZONE 5: 4 Independent Workspaces ↔ Shared Cache
 | Dependency | Version/Ref | Defined In | Used By |
 |---|---|---|---|
 | Bazel | 7.4.1 | `.bazelversion` (×4) | All workspaces |
-| JDK (embedded) | 21.0.4 | Bazel 7.4.1 binary | Build process |
-| JDK (remote toolchain) | 21.0.3 | `.bazelrc` remotejdk_21 | Build process |
+| JDK (embedded) | 21.0.4 (Bazel 7.4.1) | Bazel install | Bazel server; removed post-build by build_and_test_all_in_docker for Nessus compliance |
+| JDK (remote toolchain) | 21.48.15 CA | `third_party/jdk_override.bzl` | Java compilation |
 | rules_docker | v0.26.0 | Root `WORKSPACE` | Main build only |
 | distroless base | cc-debian12 | `container_deps.bzl` | Runtime images |
 | Envoy sidecar | v1.31.4 | `container_deps.bzl` | Runtime images |

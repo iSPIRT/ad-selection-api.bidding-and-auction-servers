@@ -1,21 +1,27 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("//builders/bazel:deps.bzl", "python_deps", "python_register_toolchains")
+load("//third_party:jdk_override.bzl", "jdk_21_override")
 
-# rules_docker v0.26.0 (Bazel 7+ compatible, cfg=host→exec fix)
+# JDK 21.48.15 CA override for Nessus CVE compliance (must be before default is loaded)
+jdk_21_override()
 
+# rules_oci v2.2.7 (OCI images, replaces deprecated rules_docker)
 http_archive(
-    name = "io_bazel_rules_docker",
-    sha256 = "f6dcb97e992f13bc9effd794e9bb300f06b0dadc88061f81ae68d8d5994be964",
-    urls = [
-        "https://mirror.bazel.build/github.com/bazelbuild/rules_docker/releases/download/v0.26.0/rules_docker-v0.26.0.tar.gz",
-        "https://github.com/bazelbuild/rules_docker/releases/download/v0.26.0/rules_docker-v0.26.0.tar.gz",
-    ],
+    name = "rules_oci",
+    sha256 = "b8db7ab889d501db33313620b2c8040dbb07e95c26a0fefe06004b35baf80e08",
+    strip_prefix = "rules_oci-2.2.7",
+    url = "https://github.com/bazel-contrib/rules_oci/releases/download/v2.2.7/rules_oci-v2.2.7.tar.gz",
 )
+
+load("@rules_oci//oci:dependencies.bzl", "rules_oci_dependencies")
+
+rules_oci_dependencies()
 
 python_deps()
 
 python_register_toolchains("//builders/bazel")
 
+# TEMP: sarang/bazel_upgrade branch until PR merges to main
 http_archive(
     name = "google_privacysandbox_servers_common",
     auth_patterns = {
@@ -49,20 +55,13 @@ load("@google_privacysandbox_servers_common//third_party:deps4.bzl", data_plane_
 
 data_plane_shared_deps4()
 
-load(
-    "@io_bazel_rules_docker//repositories:repositories.bzl",
-    container_repositories = "repositories",
-)
-
-container_repositories()
-
-load("@io_bazel_rules_docker//repositories:deps.bzl", rules_docker_deps = "deps")
-
-rules_docker_deps()
-
 load("//third_party:container_deps.bzl", "container_deps")
 
 container_deps()
+
+load("//third_party:envoy_layer.bzl", "envoy_layer_repositories")
+
+envoy_layer_repositories()
 
 load("@com_github_google_rpmpack//:deps.bzl", "rpmpack_dependencies")
 
