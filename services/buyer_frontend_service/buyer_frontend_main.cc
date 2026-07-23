@@ -241,7 +241,8 @@ absl::StatusOr<TrustedServersConfigClient> GetConfigClient(
 
 // Brings up the gRPC async BuyerFrontEndService on FLAGS_port.
 absl::Status RunServer() {
-  TrustedServerConfigUtil config_util(absl::GetFlag(FLAGS_init_config_client));
+  TrustedServerConfigUtil config_util(absl::GetFlag(FLAGS_init_config_client),
+                                      "Offer Frontend");
   PS_ASSIGN_OR_RETURN(TrustedServersConfigClient config_client,
                       GetConfigClient(config_util.GetConfigParameterPrefix()));
   // InitTelemetry right after config_client being initialized
