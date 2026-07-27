@@ -14,6 +14,7 @@
 
 #include "services/common/clients/config/trusted_server_config_client_util.h"
 
+#include <cstdlib>
 #include <memory>
 #include <string>
 #include <utility>
@@ -54,6 +55,36 @@ inline constexpr char kResourceNameFetchError[] =
     "Unable to fetch instance resource name: (status_code: %s)";
 inline constexpr char kResourceTagFetchError[] =
     "Unable to fetch instance's tags: (status_code: %s)";
+inline constexpr char kOtelServiceNameEnv[] = "OTEL_SERVICE_NAME";
+// Azure CPIO instance client placeholder; not a real service identity.
+inline constexpr char kAzureServicePlaceholder[] = "azure_service";
+
+std::string GetOtelServiceNameFromEnv() {
+  const char* env_value = std::getenv(kOtelServiceNameEnv);
+  if (env_value != nullptr && env_value[0] != '\0') {
+    return std::string(env_value);
+  }
+  return {};
+}
+
+bool NeedsOtelServiceNameFallback(absl::string_view service) {
+  return service.empty() || service == kAzureServicePlaceholder;
+}
+
+void ApplyOtelServiceNameFallback(std::string& service,
+                                  absl::string_view default_service_name) {
+  if (!NeedsOtelServiceNameFallback(service)) {
+    return;
+  }
+  std::string env_service = GetOtelServiceNameFromEnv();
+  if (!env_service.empty()) {
+    service = std::move(env_service);
+    return;
+  }
+  if (!default_service_name.empty()) {
+    service = std::string(default_service_name);
+  }
+}
 
 absl::Status HandleFailure(absl::string_view error) noexcept {
   ABSL_LOG(ERROR) << error;
@@ -96,9 +127,11 @@ absl::StatusOr<std::string> GetResourceName(
 
 }  // namespace
 
-TrustedServerConfigUtil::TrustedServerConfigUtil(bool init_config_client)
+TrustedServerConfigUtil::TrustedServerConfigUtil(
+    bool init_config_client, absl::string_view default_service_name)
     : init_config_client_(init_config_client) {
   if (!init_config_client_) {
+    ApplyOtelServiceNameFallback(service_, default_service_name);
     return;
   }
 
@@ -135,6 +168,8 @@ TrustedServerConfigUtil::TrustedServerConfigUtil(bool init_config_client)
   } else {
     done.WaitForNotification();
   }
+
+  ApplyOtelServiceNameFallback(service_, default_service_name);
 }
 
 // Returns the string to prepend the names of all keys/flags fetched from the

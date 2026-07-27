@@ -405,7 +405,8 @@ std::vector<std::string> GetModels(
 
 // Brings up the gRPC BiddingService on FLAGS_port.
 absl::Status RunServer() {
-  TrustedServerConfigUtil config_util(absl::GetFlag(FLAGS_init_config_client));
+  TrustedServerConfigUtil config_util(absl::GetFlag(FLAGS_init_config_client),
+                                      "Offer Generation");
   PS_ASSIGN_OR_RETURN(TrustedServersConfigClient config_client,
                       GetConfigClient(config_util.GetConfigParameterPrefix()));
   const std::string_view inference_model_bucket_paths =

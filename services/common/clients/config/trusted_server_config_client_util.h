@@ -28,7 +28,11 @@ class TrustedServerConfigUtil {
  public:
   // Uses an SCP provided client to parse details of the running instance.
   // TODO(b/279818295): Expand functionality to also work on GCP.
-  explicit TrustedServerConfigUtil(bool init_config_client);
+  // OTEL service.name: OTEL_SERVICE_NAME env, else default_service_name when
+  // instance metadata is missing or Azure placeholder "azure_service".
+  explicit TrustedServerConfigUtil(
+      bool init_config_client,
+      absl::string_view default_service_name = "");
 
   // Returns the server instance id.
   absl::string_view GetInstanceId() const { return instance_id_; }
