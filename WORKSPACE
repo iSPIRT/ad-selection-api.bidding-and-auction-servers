@@ -18,17 +18,16 @@ load("@rules_oci//oci:dependencies.bzl", "rules_oci_dependencies")
 rules_oci_dependencies()
 
 python_deps()
-
+  
 python_register_toolchains("//builders/bazel")
-
-# TEMP: sarang/bazel_upgrade branch until PR merges to main
+  
 http_archive(
     name = "google_privacysandbox_servers_common",
     auth_patterns = {
     },
-    strip_prefix = "ad-selection-api.data-plane-shared-libraries-main",
+    strip_prefix = "ad-selection-api.data-plane-shared-libraries-saurabh-grace-period-key-range-fetch",
     urls = [
-        "https://github.com/iSPIRT/ad-selection-api.data-plane-shared-libraries/archive/refs/heads/main.zip",
+        "https://github.com/Saurabhspi/ad-selection-api.data-plane-shared-libraries/archive/refs/heads/saurabh/grace-period-key-range-fetch.zip",
     ],
 )
 
